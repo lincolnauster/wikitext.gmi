@@ -32,6 +32,10 @@ doesn't. Here's how we handle them:
   end of the document.
 * Images: [unimplemented] we transform these into links between paragraphs.
 * Horizontal Rules: These are just displayed verbatim as `---`.
+* Tables of Contents: [unimplemented] we just ignore these. Wikipedia has a
+  bunch of directives to work with them, and none of them map well to
+  Geminispace: for one, there are no nested links, and, for another, if a user
+  wants a table of contents, they can just use a client that provides it.
 * [bunch more stuff that I'll get to later!]
 
 ## Usage

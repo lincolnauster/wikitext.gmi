@@ -18,7 +18,7 @@ instance Show Token where
 
   show (Header n s) | n <= 3 = replicate n '#' ++ " " ++ s
    -- show headers of lesser importance in brackets
-  show (Header n s) = "### [" ++ s ++ "]"
+  show (Header _ s) = "### [" ++ s ++ "]"
 
   show HorizontalRule = "---"
 

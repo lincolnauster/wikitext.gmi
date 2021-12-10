@@ -31,6 +31,7 @@ doesn't. Here's how we handle them:
 * References: [unimplemneted] we transform these to out-of-line links at the
   end of the document.
 * Images: [unimplemented] we transform these into links between paragraphs.
+* Horizontal Rules: These are just displayed verbatim as `---`.
 * [bunch more stuff that I'll get to later!]
 
 ## Usage

@@ -36,6 +36,9 @@ doesn't. Here's how we handle them:
   bunch of directives to work with them, and none of them map well to
   Geminispace: for one, there are no nested links, and, for another, if a user
   wants a table of contents, they can just use a client that provides it.
+* Nested Lists: [unimplemented] these are just flattened. I don't know how I
+  feel about this, alternate strategies are welcome.
+* Ordered Lists: The number is prepended to the list text in brackets.
 * [bunch more stuff that I'll get to later!]
 
 ## Usage

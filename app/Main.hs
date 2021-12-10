@@ -28,6 +28,7 @@ performState LineStart ('=':s) = performState (HeaderOpen 1) s
 performState LineStart (x:xs)  = performState (WordBuild [x]) xs
 
 performState (WordBuild x) [] = (Word x, Done, "")
+performState (WordBuild x) ('\n':y) = (Word x, LineStart, y)
 performState (WordBuild x) (y:ys) | isSpace y = (Word x, WordBuild "", ys)
 performState (WordBuild x) (y:ys) = performState (WordBuild $ x ++ [y]) ys
 

@@ -28,14 +28,12 @@ performState LineStart ('=':s) = performState (HeaderOpen 1) s
 performState LineStart (x:xs)  = performState (WordBuild [x]) xs
 
 performState (WordBuild x) [] = (Word x, Done, "")
-performState (WordBuild x) (y:ys) = if isSpace y
-                                    then (Word x, Done, ys)
-                                    else performState (WordBuild $ x ++ [y]) ys
+performState (WordBuild x) (y:ys) | isSpace y = (Word x, Done, ys)
+performState (WordBuild x) (y:ys) = performState (WordBuild $ x ++ [y]) ys
 
 performState (HeaderOpen n) ('=':s) = performState (HeaderOpen $ n + 1) s
-performState (HeaderOpen n) (x:xs)  = if isSpace x
-                                      then performState (HeaderText n "") xs
-                                      else performState (WordBuild $ replicate n '=') (x : xs)
+performState (HeaderOpen n) (x:xs) | isSpace x = performState (HeaderText n "") xs
+performState (HeaderOpen n) x = performState (WordBuild $ replicate n '=') x
 
 -- If HeaderText ends prematurely, this is in fact *not* a header, but rather a
 -- line that begins with some =='s. At this point, we reconstruct the text, and

@@ -15,9 +15,9 @@ data Token = Word String | Header Int String | Invalid
 -- `show` renders our token to gemtext
 instance Show Token where
   show (Word s) = s ++ [' ']
-  show (Header n s) | n <= 3 = replicate n '#' ++ " " ++ s
+  show (Header n s) | n <= 3 = replicate n '#' ++ " " ++ s ++ "\n"
    -- show headers of lesser importance in brackets
-  show (Header n s) = "### [" ++ s ++ "]"
+  show (Header n s) = "### [" ++ s ++ "]\n"
 
 -- Process the state in the context of the input string, returning the next
 -- state, the parsed token, and the next unparsed portion of the input string.
@@ -28,7 +28,7 @@ performState LineStart ('=':s) = performState (HeaderOpen 1) s
 performState LineStart (x:xs)  = performState (WordBuild [x]) xs
 
 performState (WordBuild x) [] = (Word x, Done, "")
-performState (WordBuild x) (y:ys) | isSpace y = (Word x, Done, ys)
+performState (WordBuild x) (y:ys) | isSpace y = (Word x, WordBuild "", ys)
 performState (WordBuild x) (y:ys) = performState (WordBuild $ x ++ [y]) ys
 
 performState (HeaderOpen n) ('=':s) = performState (HeaderOpen $ n + 1) s
@@ -48,7 +48,7 @@ performState (HeaderText n s) (x:xs) = if isSpace x
                                             _   -> performState (HeaderText n $ s ++ [x]) xs
                                        else performState (HeaderText n $ s ++ [x]) xs
 
-performState (HeaderClose 0 x s) r = (Header (x + 1) s, Done, r)
+performState (HeaderClose 0 x s) ('\n':y) = (Header (x + 1) s, LineStart, y)
 performState (HeaderClose n x s) ('=':ys) = performState (HeaderClose (n - 1) x s) ys
 
 -- If HeaderClose's line is terminated, this is in fact *not* a header, but
@@ -60,9 +60,14 @@ performState (HeaderClose ending starting text) ('\n':ys) = let
                     ++ replicate (starting - ending) '=' ++ ['\n'] ++ ys
              in performState (WordBuild "") text
 
-gemtext s = case performState LineStart s of
-                 (t, Done, _) -> show t
-                 _ -> "oh boy somebody made an UwU fucky wucky!"
+gemtext      :: String -> String
+gemtextInner :: State -> String -> String
+
+gemtextInner s r = case performState s r of
+                        (t, Done, _) -> show t
+                        (t, s, r)    -> show t ++ gemtextInner s r
+
+gemtext s = gemtextInner LineStart s
 
 main :: IO ()
 main = do cont <- getContents

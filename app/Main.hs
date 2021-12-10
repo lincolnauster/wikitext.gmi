@@ -10,7 +10,7 @@ data State = Done -- Input finished a token.
            | HeaderClose Int Int String -- Input is closing a header, with Int ='s left to go, of level Int, and with the given text.
            deriving Show
 
-data Token = Word String | Header Int String | Invalid
+data Token = Word String | Header Int String
 
 -- `show` renders our token to gemtext
 instance Show Token where

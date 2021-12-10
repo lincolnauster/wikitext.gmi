@@ -20,7 +20,7 @@ instance Show Token where
    -- show headers of lesser importance in brackets
   show (Header n s) = "### [" ++ s ++ "]"
 
-  show (HorizontalRule) = "---"
+  show HorizontalRule = "---"
 
 -- Process the state in the context of the input string, returning the next
 -- state, the parsed token, and the next unparsed portion of the input string.
@@ -74,7 +74,7 @@ gemtextInner s r = case performState s r of
                         (t, LineStart, r) -> show t ++ "\n" ++ gemtextInner LineStart r
                         (t, s, r)         -> show t ++ gemtextInner s r
 
-gemtext s = gemtextInner LineStart s
+gemtext = gemtextInner LineStart
 
 main :: IO ()
 main = do cont <- getContents

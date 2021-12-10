@@ -15,9 +15,9 @@ data Token = Word String | Header Int String | Invalid
 -- `show` renders our token to gemtext
 instance Show Token where
   show (Word s) = s ++ [' ']
-  show (Header n s) | n <= 3 = replicate n '#' ++ " " ++ s ++ "\n"
+  show (Header n s) | n <= 3 = replicate n '#' ++ " " ++ s
    -- show headers of lesser importance in brackets
-  show (Header n s) = "### [" ++ s ++ "]\n"
+  show (Header n s) = "### [" ++ s ++ "]"
 
 -- Process the state in the context of the input string, returning the next
 -- state, the parsed token, and the next unparsed portion of the input string.
@@ -65,8 +65,9 @@ gemtext      :: String -> String
 gemtextInner :: State -> String -> String
 
 gemtextInner s r = case performState s r of
-                        (t, Done, _) -> show t
-                        (t, s, r)    -> show t ++ gemtextInner s r
+                        (t, Done, _)      -> show t
+                        (t, LineStart, r) -> show t ++ "\n" ++ gemtextInner LineStart r
+                        (t, s, r)         -> show t ++ gemtextInner s r
 
 gemtext s = gemtextInner LineStart s
 

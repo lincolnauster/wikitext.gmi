@@ -62,9 +62,9 @@ performState (HeaderClose n x s) ('=':ys) = performState (HeaderClose (n - 1) x 
 -- reconstruct the string (this can be done losslessly because whitespace is
 -- unimportant) and resume scanning knowing that we are constructing a word.
 performState (HeaderClose ending starting text) ('\n':ys) = let
-             text = replicate starting '=' ++ [' '] ++ text
-                    ++ replicate (starting - ending) '=' ++ ['\n'] ++ ys
-             in performState (WordBuild "") text
+             hText = replicate starting '=' ++ [' '] ++ text
+                     ++ replicate (starting - ending) '=' ++ ['\n'] ++ ys
+             in performState (WordBuild "") hText
 
 gemtext      :: String -> String
 gemtextInner :: State -> String -> String

@@ -4,7 +4,7 @@ import Data.Char
 
 data State = Done -- Input finished a token.
            | LineStart -- Input is starting a line.
-           | WordBuild String -- Input is composing a word.
+           | ParBuild String -- Input is composing a paragraph.
            | HeaderOpen  Int        -- Input is opening a header with a given level.
            | HeaderText  Int String -- Input is opening a header with a given level and text.
            | HeaderClose Int Int String -- Input is closing a header, with Int ='s left to go, of level Int, and with the given text.
@@ -30,24 +30,24 @@ performState :: State -> String -> (Token, State, String)
 performState LineStart ('=':s) = performState (HeaderOpen 1) s
 performState LineStart ('-':'-':'-':'\n':s) = (HorizontalRule, LineStart, s)
 
-performState LineStart (x:xs)  = performState (WordBuild [x]) xs
+performState LineStart (x:xs)  = performState (ParBuild [x]) xs
 
-performState (WordBuild x) [] = (Paragraph x, Done, "")
-performState (WordBuild x) ('\n':'\n':y) = (Paragraph x, LineStart, y)
-performState (WordBuild x) (y:ys) = if isSpace y then -- collapse whitespace
-                                         performState (WordBuild $ x ++ " ") ys
-                                    else performState (WordBuild $ x ++ [y]) ys
+performState (ParBuild x) [] = (Paragraph x, Done, "")
+performState (ParBuild x) ('\n':'\n':y) = (Paragraph x, LineStart, y)
+performState (ParBuild x) (y:ys) = if isSpace y then -- collapse whitespace
+                                         performState (ParBuild $ x ++ " ") ys
+                                    else performState (ParBuild $ x ++ [y]) ys
 
 performState (HeaderOpen n) ('=':s) = performState (HeaderOpen $ n + 1) s
 performState (HeaderOpen n) (x:xs) | isSpace x = performState (HeaderText n "") xs
-performState (HeaderOpen n) x = performState (WordBuild $ replicate n '=') x
+performState (HeaderOpen n) x = performState (ParBuild $ replicate n '=') x
 
 -- If HeaderText ends prematurely, this is in fact *not* a header, but rather a
 -- line that begins with some =='s. At this point, we reconstruct the text, and
 -- back up with the knowledge that we're constructing a word.
 performState (HeaderText n s) ('\n':xs) = let
              text = replicate n '=' ++ [' '] ++ s ++ ['\n'] ++ xs
-             in performState (WordBuild "") text
+             in performState (ParBuild "") text
 
 performState (HeaderText n s) (x:xs) = if isSpace x
                                        then case head xs of
@@ -65,7 +65,7 @@ performState (HeaderClose n x s) ('=':ys) = performState (HeaderClose (n - 1) x 
 performState (HeaderClose ending starting text) ('\n':ys) = let
              hText = replicate starting '=' ++ [' '] ++ text
                      ++ replicate (starting - ending) '=' ++ ['\n'] ++ ys
-             in performState (WordBuild "") hText
+             in performState (ParBuild "") hText
 
 gemtext      :: String -> String
 gemtextInner :: State -> String -> String

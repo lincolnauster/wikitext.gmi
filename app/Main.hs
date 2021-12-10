@@ -10,14 +10,17 @@ data State = Done -- Input finished a token.
            | HeaderClose Int Int String -- Input is closing a header, with Int ='s left to go, of level Int, and with the given text.
            deriving Show
 
-data Token = Word String | Header Int String
+data Token = Word String | Header Int String | HorizontalRule
 
 -- `show` renders our token to gemtext
 instance Show Token where
   show (Word s) = s ++ [' ']
+
   show (Header n s) | n <= 3 = replicate n '#' ++ " " ++ s
    -- show headers of lesser importance in brackets
   show (Header n s) = "### [" ++ s ++ "]"
+
+  show (HorizontalRule) = "---"
 
 -- Process the state in the context of the input string, returning the next
 -- state, the parsed token, and the next unparsed portion of the input string.
@@ -25,6 +28,8 @@ instance Show Token where
 performState :: State -> String -> (Token, State, String)
 
 performState LineStart ('=':s) = performState (HeaderOpen 1) s
+performState LineStart ('-':'-':'-':'\n':s) = (HorizontalRule, LineStart, s)
+
 performState LineStart (x:xs)  = performState (WordBuild [x]) xs
 
 performState (WordBuild x) [] = (Word x, Done, "")

@@ -10,11 +10,11 @@ data State = Done -- Input finished a token.
            | HeaderClose Int Int String -- Input is closing a header, with Int ='s left to go, of level Int, and with the given text.
            deriving Show
 
-data Token = Word String | Header Int String | HorizontalRule
+data Token = Paragraph String | Header Int String | HorizontalRule
 
 -- `show` renders our token to gemtext
 instance Show Token where
-  show (Word s) = s ++ [' ']
+  show (Paragraph s) = s ++ "\n"
 
   show (Header n s) | n <= 3 = replicate n '#' ++ " " ++ s
    -- show headers of lesser importance in brackets
@@ -32,10 +32,11 @@ performState LineStart ('-':'-':'-':'\n':s) = (HorizontalRule, LineStart, s)
 
 performState LineStart (x:xs)  = performState (WordBuild [x]) xs
 
-performState (WordBuild x) [] = (Word x, Done, "")
-performState (WordBuild x) ('\n':y) = (Word x, LineStart, y)
-performState (WordBuild x) (y:ys) | isSpace y = (Word x, WordBuild "", ys)
-performState (WordBuild x) (y:ys) = performState (WordBuild $ x ++ [y]) ys
+performState (WordBuild x) [] = (Paragraph x, Done, "")
+performState (WordBuild x) ('\n':'\n':y) = (Paragraph x, LineStart, y)
+performState (WordBuild x) (y:ys) = if isSpace y then -- collapse whitespace
+                                         performState (WordBuild $ x ++ " ") ys
+                                    else performState (WordBuild $ x ++ [y]) ys
 
 performState (HeaderOpen n) ('=':s) = performState (HeaderOpen $ n + 1) s
 performState (HeaderOpen n) (x:xs) | isSpace x = performState (HeaderText n "") xs

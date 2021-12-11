@@ -1,6 +1,8 @@
 module Main where
 
 import Data.Char
+import System.IO
+import System.Environment
 
 data State = Done -- Input finished a token.
            | LineStart -- Input is starting a line.
@@ -74,5 +76,13 @@ gemtextInner s r = case performState s r of
                         (t, LineStart, r) -> show t ++ "\n" ++ gemtextInner LineStart r
                         (t, s, r)         -> show t ++ gemtextInner s r
 
+-- Given CLI args, locate and return a lazy string of the requested input.
+targetStream :: IO [String] -> IO String
+targetStream args = do a <- args
+                       case a of
+                         ([])   -> getContents
+                         (x:[]) -> readFile x
+
 main :: IO ()
-main = getContents >>= \c -> putStrLn $ gemtext c
+main = targetStream getArgs >>= \c -> putStrLn $ gemtext c
+

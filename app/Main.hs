@@ -77,5 +77,4 @@ gemtextInner s r = case performState s r of
 gemtext = gemtextInner LineStart
 
 main :: IO ()
-main = do cont <- getContents
-          putStrLn $ gemtext cont
+main = getContents >>= \c -> putStrLn $ gemtext c

@@ -66,15 +66,13 @@ performState (HeaderClose ending starting text) ('\n':ys) = let
                      ++ replicate (starting - ending) '=' ++ ['\n'] ++ ys
              in performState (ParBuild "") hText
 
-gemtext      :: String -> String
 gemtextInner :: State -> String -> String
 
+gemtext = gemtextInner LineStart
 gemtextInner s r = case performState s r of
                         (t, Done, _)      -> show t
                         (t, LineStart, r) -> show t ++ "\n" ++ gemtextInner LineStart r
                         (t, s, r)         -> show t ++ gemtextInner s r
-
-gemtext = gemtextInner LineStart
 
 main :: IO ()
 main = getContents >>= \c -> putStrLn $ gemtext c

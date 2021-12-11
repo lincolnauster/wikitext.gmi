@@ -39,8 +39,10 @@ performState (ParBuild x) (y:ys) = if isSpace y then -- collapse whitespace
                                     else performState (ParBuild $ x ++ [y]) ys
 
 performState (HeaderOpen n) ('=':s) = performState (HeaderOpen $ n + 1) s
+
+-- skip openinig whitespace
 performState (HeaderOpen n) (x:xs) | isSpace x = performState (HeaderText n "") xs
-performState (HeaderOpen n) x = performState (ParBuild $ replicate n '=') x
+performState (HeaderOpen n) x = performState (HeaderText n "") x
 
 -- If HeaderText ends prematurely, this is in fact *not* a header, but rather a
 -- line that begins with some =='s. At this point, we reconstruct the text, and
@@ -49,11 +51,8 @@ performState (HeaderText n s) ('\n':xs) = let
              text = replicate n '=' ++ [' '] ++ s ++ ['\n'] ++ xs
              in performState (ParBuild "") text
 
-performState (HeaderText n s) (x:xs) = if isSpace x
-                                       then case head xs of
-                                            '=' -> performState (HeaderClose n (n - 1) s) xs
-                                            _   -> performState (HeaderText n $ s ++ [x]) xs
-                                       else performState (HeaderText n $ s ++ [x]) xs
+performState (HeaderText n s) ('=':xs) = performState (HeaderClose (n - 1) (n - 1) s) xs
+performState (HeaderText n s) (x:xs)   = performState (HeaderText n $ s ++ [x]) xs
 
 performState (HeaderClose 0 x s) ('\n':y) = (Header (x + 1) s, LineStart, y)
 performState (HeaderClose n x s) ('=':ys) = performState (HeaderClose (n - 1) x s) ys

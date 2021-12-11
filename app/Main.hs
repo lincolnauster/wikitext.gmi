@@ -77,12 +77,11 @@ gemtextInner s r = case performState s r of
                         (t, s, r)         -> show t ++ gemtextInner s r
 
 -- Given CLI args, locate and return a lazy string of the requested input.
-targetStream :: IO [String] -> IO String
-targetStream args = do a <- args
-                       case a of
-                         ([])   -> getContents
-                         (x:[]) -> readFile x
+targetStream :: IO String
+targetStream = do a <- getArgs
+                  case a of
+                       ([])   -> getContents
+                       (x:[]) -> readFile x
 
 main :: IO ()
-main = targetStream getArgs >>= \c -> putStrLn $ gemtext c
-
+main = targetStream >>= \c -> putStrLn $ gemtext c

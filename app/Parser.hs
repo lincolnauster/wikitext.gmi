@@ -9,9 +9,9 @@ gemtext :: String -> String
 
 gemtext = gemtextInner LineStart
 gemtextInner s r = case performState s r of
-                        (t, Done, _)      -> show t
-                        (t, LineStart, r) -> show t ++ "\n" ++ gemtextInner LineStart r
-                        (t, s, r)         -> show t ++ gemtextInner s r
+                        (t, Done, _)       -> show t
+                        (t, LineStart, rs) -> show t ++ "\n" ++ gemtextInner LineStart rs
+                        (t, ss, rs)        -> show t ++ gemtextInner ss rs
 
 data State = Done -- Input finished a token.
            | LineStart -- Input is starting a line.

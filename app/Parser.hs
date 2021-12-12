@@ -3,6 +3,7 @@ module Parser
   ) where
 
 import Data.Char
+import Data.List
 
 -- Lazily convert an input wikidata String to gemtext.
 gemtext :: String -> String
@@ -44,41 +45,59 @@ instance Show Token where
 
   show HorizontalRule = "---"
 
-performState LineStart ('=':s) = performState (HeaderOpen 1) s
-performState LineStart ('-':'-':'-':'\n':s) = (HorizontalRule, LineStart, s)
+performState LineStart s | isPrefixOf "=" s
+  = performState (HeaderOpen 1) $ tail s
 
-performState LineStart (x:xs)  = performState (ParBuild [x]) xs
+performState LineStart s | isPrefixOf "---\n" s
+  = (HorizontalRule, LineStart, drop 4 s)
 
-performState (ParBuild x) [] = (Paragraph x, Done, "")
-performState (ParBuild x) ('\n':'\n':y) = (Paragraph x, LineStart, y)
-performState (ParBuild x) (y:ys) = if isSpace y then -- collapse whitespace
-                                         performState (ParBuild $ x ++ " ") ys
-                                    else performState (ParBuild $ x ++ [y]) ys
+performState LineStart s = performState (ParBuild [head s]) $ tail s
 
-performState (HeaderOpen n) ('=':s) = performState (HeaderOpen $ n + 1) s
+performState (ParBuild x) "" = (Paragraph x, Done, "")
+performState (ParBuild x) y | isPrefixOf "\n\n" y
+  = (Paragraph x, LineStart, drop 2 y)
 
--- skip openinig whitespace
-performState (HeaderOpen n) (x:xs) | isSpace x = performState (HeaderText n "") xs
+performState (ParBuild x) t = let y  = head t
+                                  ys = tail t
+                              in if isSpace y then -- collapse whitespace
+                                      performState (ParBuild $ x ++ " ") ys
+                                 else performState (ParBuild $ x ++ [y]) ys
+
+performState (HeaderOpen n) s | isPrefixOf "=" s =
+  performState (HeaderOpen $ n + 1) $ tail s
+
+-- skip opening whitespace
+performState (HeaderOpen n) x | isSpace $ head x =
+  performState (HeaderText n "") $ tail x
+
 performState (HeaderOpen n) x = performState (HeaderText n "") x
 
 -- If HeaderText ends prematurely, this is in fact *not* a header, but rather a
--- line that begins with some =='s. At this point, we reconstruct the text, and
+-- line that begins with some ='s. At this point, we reconstruct the text, and
 -- back up with the knowledge that we're constructing a word.
-performState (HeaderText n s) ('\n':xs) = let
+performState (HeaderText n s) x | head x == '\n' = let
+             xs = tail x
              text = replicate n '=' ++ [' '] ++ s ++ ['\n'] ++ xs
              in performState (ParBuild "") text
 
-performState (HeaderText n s) ('=':xs) = performState (HeaderClose (n - 1) (n - 1) s) xs
-performState (HeaderText n s) (x:xs)   = performState (HeaderText n $ s ++ [x]) xs
+performState (HeaderText n s) x | isPrefixOf "=" x
+  = performState (HeaderClose (n - 1) (n - 1) s) $ tail x
 
-performState (HeaderClose 0 x s) ('\n':y) = (Header (x + 1) s, LineStart, y)
-performState (HeaderClose n x s) ('=':ys) = performState (HeaderClose (n - 1) x s) ys
+performState (HeaderText n s) x =
+  performState (HeaderText n $ s ++ [head x]) $ tail x
+
+performState (HeaderClose 0 x s) y | isPrefixOf "\n" y
+  = (Header (x + 1) s, LineStart, tail y)
+
+performState (HeaderClose n x s) y | isPrefixOf "=" y
+  = performState (HeaderClose (n - 1) x s) $ tail y
 
 -- If HeaderClose's line is terminated, this is in fact *not* a header, but
 -- rather a line that looks something like `== abc =`. At this point, we
 -- reconstruct the string (this can be done losslessly because whitespace is
 -- unimportant) and resume scanning knowing that we are constructing a word.
-performState (HeaderClose ending starting text) ('\n':ys) = let
-             hText = replicate starting '=' ++ [' '] ++ text
+performState (HeaderClose ending starting text) y | isPrefixOf "\n" y = let
+             ys = tail y
+             hText = replicate starting '=' ++ " " ++ text
                      ++ replicate (starting - ending) '=' ++ ['\n'] ++ ys
              in performState (ParBuild "") hText

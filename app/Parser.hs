@@ -7,6 +7,13 @@ import Data.Char
 -- Lazily convert an input wikidata String to gemtext.
 gemtext :: String -> String
 
+gemtextInner :: State -> String -> String
+
+-- Process the state in the context of the input string, returning the next
+-- state, the parsed token, and the next unparsed portion of the input string.
+-- It is invalid to call this with a Done state.
+performState :: State -> String -> (Token, State, String)
+
 gemtext = gemtextInner LineStart
 gemtextInner s r = case performState s r of
                         (t, Done, _)       -> show t
@@ -36,11 +43,6 @@ instance Show Token where
   show (Header _ s) = "### [" ++ s ++ "]"
 
   show HorizontalRule = "---"
-
--- Process the state in the context of the input string, returning the next
--- state, the parsed token, and the next unparsed portion of the input string.
--- It is invalid to call this with a Done state.
-performState :: State -> String -> (Token, State, String)
 
 performState LineStart ('=':s) = performState (HeaderOpen 1) s
 performState LineStart ('-':'-':'-':'\n':s) = (HorizontalRule, LineStart, s)

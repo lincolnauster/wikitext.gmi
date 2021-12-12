@@ -8,7 +8,6 @@ import Parser
 
 data Action = Help | Convert String
 
--- Given CLI args, locate and return a lazy string of the requested input.
 getTargetAction :: IO Action
 getTargetAction = do a <- getArgs
                      case a of

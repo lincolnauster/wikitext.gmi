@@ -41,6 +41,27 @@ doesn't. Here's how we handle them:
 * Ordered Lists: The number is prepended to the list text in brackets.
 * [bunch more stuff that I'll get to later!]
 
+## How fast is it?
+It's a work in progress. The core algorithms (mostly just a DFA) look sound
+enough to me, and Haskell seems to be a good language to play with different IO
+techniques due to its handling of polymorphism and its equational reasoning
+capabilities, but my own theoretical knowledge of 'fast Haskell' is not much.
+This is written first for idiomaticity and *then for speed*; all to be used in
+Instrumental, my Wikipedia-over-Gemini proxy. If you look at that README, you'll
+see that speed is not *it's* primary goal either, though 'fast-enough' is a
+concern.
+
+If you want to take it upon yourself to optimize (in case I don't get around to
+it first!), here's what I'm looking for:
++ Keep memory usage low & lazy.
++ Keep contiguous memory.
++ Assume that hundreds of instances could be running at once.
++ Keep it all encapsulated.
++ Keep it all idiomatic.
+
+The [Pipes](https://hackage.haskell.org/package/pipes) package looks like it
+could work quite well.
+
 ## Usage
 wikitext.gmi compiles to a binary which reads WikiText from stdin and writes
 Gemtext to stdout. Some C bindings for FFI might exist at some point, but do

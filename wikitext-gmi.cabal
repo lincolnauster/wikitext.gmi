@@ -3,11 +3,6 @@ name:               wikitext-gmi
 version:            0.1.0
 
 synopsis: A WikiText to Gemtext stream editor
-description: wikitext.gmi provides a tool to convert the WikiText markup
-language used by MediaWiki (powering sites like Wikipedia) to Gemtext, the
-de-facto standard for Gemini space. Gemtext is a much smaller and simpler format
-than MediaWiki (really, this is difficult to overstate!), so the conversion is
-usually somewhat lossy.
 
 -- A URL where users can report bugs.
 -- bug-reports:

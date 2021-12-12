@@ -16,9 +16,13 @@ gemtextInner s r = case performState s r of
 data State = Done -- Input finished a token.
            | LineStart -- Input is starting a line.
            | ParBuild String -- Input is composing a paragraph.
-           | HeaderOpen  Int        -- Input is opening a header with a given level.
-           | HeaderText  Int String -- Input is opening a header with a given level and text.
-           | HeaderClose Int Int String -- Input is closing a header, with Int ='s left to go, of level Int, and with the given text.
+           -- Input is opening a header with a given level.
+           | HeaderOpen  Int
+           -- Input is opening a header with a given level and text.
+           | HeaderText  Int String
+           -- Input is closing a header, with Int ='s left to go, of level Int,
+           -- and with the given text.
+           | HeaderClose Int Int String
            deriving Show
 
 data Token = Paragraph String | Header Int String | HorizontalRule

@@ -31,6 +31,9 @@ data State = Done -- Input finished a token.
            -- Input is closing a header, with Int ='s left to go, of level Int,
            -- and with the given text.
            | HeaderClose Int Int String
+           -- Input has given us Int '-''s, and the input *might* be a
+           -- horizontal rule.
+           | HorizontalRuleBuild Int
            deriving Show
 
 data Token = Paragraph String | Header Int String | HorizontalRule
@@ -48,8 +51,8 @@ instance Show Token where
 performState LineStart s | isPrefixOf "=" s
   = performState (HeaderOpen 1) $ tail s
 
-performState LineStart s | isPrefixOf "---\n" s
-  = (HorizontalRule, LineStart, drop 4 s)
+performState LineStart s | isPrefixOf "-" s
+  = performState (HorizontalRuleBuild 1) $ tail s
 
 performState LineStart s = performState (ParBuild [head s]) $ tail s
 
@@ -101,3 +104,15 @@ performState (HeaderClose ending starting text) y | isPrefixOf "\n" y = let
              hText = replicate starting '=' ++ " " ++ text
                      ++ replicate (starting - ending) '=' ++ ['\n'] ++ ys
              in performState (ParBuild "") hText
+
+performState (HorizontalRuleBuild n) y | n < 3 && head y == '-'
+  = performState (HorizontalRuleBuild $ n + 1) $ tail y
+
+performState (HorizontalRuleBuild 3) y | head y == '\n'
+  = (HorizontalRule, LineStart, tail y)
+
+-- If none of the above rules matched (the string isn't ---\n or a prefix
+-- thereof), we need to back up and rebuild the token knowing that we're looking
+-- at a paragraph.
+performState (HorizontalRuleBuild n) y
+  = performState (ParBuild (replicate n '-')) y

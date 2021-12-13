@@ -22,8 +22,13 @@ gemtextInner s r = case performState s r of
                         (t, ss, rs)        -> show t ++ gemtextInner ss rs
 
 data State = Done -- Input finished a token.
-           | LineStart -- Input is starting a line.
-           | ParBuild String -- Input is composing a paragraph.
+           -- Input is starting a line.
+           | LineStart
+           -- Input is composing a paragraph.
+           | ParBuild String
+           -- Input might be able to close a paragraph (with value String),
+           -- having observed Int newlines.
+           | ParClose String Int
            -- Input is opening a header with a given level.
            | HeaderOpen  Int
            -- Input is opening a header with a given level and text.
@@ -57,14 +62,22 @@ performState LineStart s | isPrefixOf "-" s
 performState LineStart s = performState (ParBuild [head s]) $ tail s
 
 performState (ParBuild x) "" = (Paragraph x, Done, "")
-performState (ParBuild x) y | isPrefixOf "\n\n" y
-  = (Paragraph x, LineStart, drop 2 y)
+performState (ParBuild x) y | isPrefixOf "\n" y
+  = performState (ParClose x 1) $ tail y
 
 performState (ParBuild x) t = let y  = head t
                                   ys = tail t
                               in if isSpace y then -- collapse whitespace
                                       performState (ParBuild $ x ++ " ") ys
                                  else performState (ParBuild $ x ++ [y]) ys
+
+performState (ParClose x n) s | head s == '\n' && n < 2
+  = (Paragraph x, Done, tail s)
+
+-- ParClose didn't see a paragraph delimiter, so just append to the paragraph
+-- and keep building (or collapse whitespace).
+performState (ParClose x _) s
+  = performState (ParBuild $ x ++ [' ', head s]) $ tail s
 
 performState (HeaderOpen n) s | isPrefixOf "=" s =
   performState (HeaderOpen $ n + 1) $ tail s

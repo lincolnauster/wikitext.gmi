@@ -95,15 +95,16 @@ performState (HeaderClose 0 x s) y | isPrefixOf "\n" y
 performState (HeaderClose n x s) y | isPrefixOf "=" y
   = performState (HeaderClose (n - 1) x s) $ tail y
 
--- If HeaderClose's line is terminated, this is in fact *not* a header, but
--- rather a line that looks something like `== abc =`. At this point, we
--- reconstruct the string (this can be done losslessly because whitespace is
--- unimportant) and resume scanning knowing that we are constructing a word.
-performState (HeaderClose ending starting text) y | isPrefixOf "\n" y = let
-             ys = tail y
-             hText = replicate starting '=' ++ " " ++ text
-                     ++ replicate (starting - ending) '=' ++ ['\n'] ++ ys
-             in performState (ParBuild "") hText
+-- If HeaderClose's buffer doesn't end appropriately (none of the above
+-- conditions were matched and a recursion isn't appropriate), this is in fact
+-- *not* a header, but rather a line that looks something like `== abc =`. At
+-- this point, we reconstruct the string (this can be done losslessly because
+-- whitespace is unimportant) and resume scanning knowing that we are
+-- constructing a word.
+performState (HeaderClose ending starting text) y = let
+             hText = replicate (starting + 1) '=' ++ " " ++ text
+                     ++ replicate (starting - ending + 1) '=' ++ [head y]
+             in performState (ParBuild hText) $ tail y
 
 performState (HorizontalRuleBuild n) y | n < 3 && head y == '-'
   = performState (HorizontalRuleBuild $ n + 1) $ tail y

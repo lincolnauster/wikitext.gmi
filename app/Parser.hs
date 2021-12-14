@@ -9,7 +9,7 @@ import Data.List
 gemtext :: String -> String
 gemtextInner :: State -> String -> String
 
-gemtext = gemtextInner LineStart
+gemtext = gemtextInner ParagraphStart
 gemtextInner _ "" = ""
 gemtextInner s x  =
   case performState s $ head x of
@@ -23,6 +23,8 @@ performState :: State -> Char -> State
 
 data State = LineStart
            -- Input is starting a line.
+           | ParagraphStart
+           -- Input has started a paragraph.
            | WordStart
            -- Input is starting a word.
            | WordBuild String
@@ -54,11 +56,14 @@ instance Show Token where
    -- show headers of lesser importance in brackets
   show (Header _ s) = "### [" ++ s ++ "]" ++ "\n"
 
-  show HorizontalRule = "---"
+  show HorizontalRule = "---\n\n"
 
-performState LineStart '='  = HeaderOpen 1
-performState LineStart '-'  = HorizontalRuleBuild 1
-performState LineStart '\n' = Accept ParagraphBreak LineStart
+performState ParagraphStart '-'  = HorizontalRuleBuild 1
+performState ParagraphStart '='  = HeaderOpen 1
+performState ParagraphStart '\n' = ParagraphStart
+performState ParagraphStart c    = WordBuild [c]
+
+performState LineStart '\n' = Accept ParagraphBreak ParagraphStart
 performState LineStart c    = WordBuild [c]
 
 performState WordStart c = WordBuild [c]
@@ -82,7 +87,7 @@ performState (HeaderText n s) '\n'
 performState (HeaderText n s) '=' = HeaderClose (n - 1) (n - 1) s
 performState (HeaderText n s) x   = HeaderText n $ s ++ [x]
 
-performState (HeaderClose 0 x s) '\n' = Accept (Header (x + 1) s) LineStart
+performState (HeaderClose 0 x s) '\n' = Accept (Header (x + 1) s) ParagraphStart
 performState (HeaderClose n x s) '=' = HeaderClose (n - 1) x s
 
 -- If HeaderClose's buffer doesn't end appropriately (none of the above
@@ -97,7 +102,7 @@ performState (HeaderClose ending starting text) c = let
              in WordBuild hText
 
 performState (HorizontalRuleBuild n) '-' | n < 3 = HorizontalRuleBuild $ n + 1
-performState (HorizontalRuleBuild 3) '\n' = Accept HorizontalRule LineStart
+performState (HorizontalRuleBuild 3) '\n' = Accept HorizontalRule ParagraphStart
 
 -- If none of the above rules matched (the string isn't ---\n or a prefix
 -- thereof), we need to back up and rebuild the token knowing that we're looking

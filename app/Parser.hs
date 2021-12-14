@@ -7,38 +7,39 @@ import Data.List
 
 -- Lazily convert an input wikidata String to gemtext.
 gemtext :: String -> String
-
 gemtextInner :: State -> String -> String
+
+gemtext = gemtextInner LineStart
+gemtextInner _ "" = ""
+gemtextInner s x  =
+  case performState s $ head x of
+       Accept t -> show t ++ "\n" ++ gemtextInner LineStart (tail x)
+       nc -> gemtextInner nc (tail x)
 
 -- Process the state in the context of the input string, returning the next
 -- state, the parsed token, and the next unparsed portion of the input string.
 -- It is invalid to call this with a Done state.
-performState :: State -> String -> (Token, State, String)
+performState :: State -> Char -> State
 
-gemtext = gemtextInner LineStart
-gemtextInner s r = case performState s r of
-                        (t, Done, _)       -> show t
-                        (t, LineStart, rs) -> show t ++ "\n" ++ gemtextInner LineStart rs
-                        (t, ss, rs)        -> show t ++ gemtextInner ss rs
-
-data State = Done -- Input finished a token.
+data State = LineStart
            -- Input is starting a line.
-           | LineStart
-           -- Input is composing a paragraph.
            | ParBuild String
+           -- Input is composing a paragraph.
+           | ParClose String Int
            -- Input might be able to close a paragraph (with value String),
            -- having observed Int newlines.
-           | ParClose String Int
-           -- Input is opening a header with a given level.
            | HeaderOpen  Int
-           -- Input is opening a header with a given level and text.
+           -- Input is opening a header with a given level.
            | HeaderText  Int String
+           -- Input is opening a header with a given level and text.
+           | HeaderClose Int Int String
            -- Input is closing a header, with Int ='s left to go, of level Int,
            -- and with the given text.
-           | HeaderClose Int Int String
+           | HorizontalRuleBuild Int
            -- Input has given us Int '-''s, and the input *might* be a
            -- horizontal rule.
-           | HorizontalRuleBuild Int
+           | Accept Token
+           -- Input was a complete token and accepted.
            deriving Show
 
 data Token = Paragraph String | Header Int String | HorizontalRule
@@ -53,60 +54,39 @@ instance Show Token where
 
   show HorizontalRule = "---"
 
-performState LineStart s | isPrefixOf "=" s
-  = performState (HeaderOpen 1) $ tail s
+performState LineStart '=' = HeaderOpen 1
+performState LineStart '-' = HorizontalRuleBuild 1
+performState LineStart c   = ParBuild [c]
 
-performState LineStart s | isPrefixOf "-" s
-  = performState (HorizontalRuleBuild 1) $ tail s
+performState (ParBuild x) '\n' = ParClose x 1
 
-performState LineStart s = performState (ParBuild [head s]) $ tail s
+-- collapse whitespace
+performState (ParBuild x) c | isSpace c = ParBuild $ x ++ " "
+performState (ParBuild x) c = ParBuild $ x ++ [c]
 
-performState (ParBuild x) "" = (Paragraph x, Done, "")
-performState (ParBuild x) y | isPrefixOf "\n" y
-  = performState (ParClose x 1) $ tail y
+performState (ParClose x n) '\n' | n < 2 = Accept $ Paragraph x
 
-performState (ParBuild x) t = let y  = head t
-                                  ys = tail t
-                              in if isSpace y then -- collapse whitespace
-                                      performState (ParBuild $ x ++ " ") ys
-                                 else performState (ParBuild $ x ++ [y]) ys
+-- ParClose didn't see a paragraph delimiter, so just collapse the whitespace
+-- and keep building.
+performState (ParClose x _) c = ParBuild $ x ++ [' ', c]
 
-performState (ParClose x n) s | head s == '\n' && n < 2
-  = (Paragraph x, Done, tail s)
-
--- ParClose didn't see a paragraph delimiter, so just append to the paragraph
--- and keep building (or collapse whitespace).
-performState (ParClose x _) s
-  = performState (ParBuild $ x ++ [' ', head s]) $ tail s
-
-performState (HeaderOpen n) s | isPrefixOf "=" s =
-  performState (HeaderOpen $ n + 1) $ tail s
+performState (HeaderOpen n) '=' = HeaderOpen $ n + 1
 
 -- skip opening whitespace
-performState (HeaderOpen n) x | isSpace $ head x =
-  performState (HeaderText n "") $ tail x
-
-performState (HeaderOpen n) x = performState (HeaderText n "") x
+performState (HeaderOpen n) c | isSpace c = HeaderText n ""
+performState (HeaderOpen n) c = HeaderText n [c]
 
 -- If HeaderText ends prematurely, this is in fact *not* a header, but rather a
 -- line that begins with some ='s. At this point, we reconstruct the text, and
 -- back up with the knowledge that we're constructing a word.
-performState (HeaderText n s) x | head x == '\n' = let
-             xs = tail x
-             text = replicate n '=' ++ [' '] ++ s ++ ['\n'] ++ xs
-             in performState (ParBuild "") text
+performState (HeaderText n s) '\n'
+  = ParBuild $ replicate n '=' ++ " " ++ s ++ "\n"
 
-performState (HeaderText n s) x | isPrefixOf "=" x
-  = performState (HeaderClose (n - 1) (n - 1) s) $ tail x
+performState (HeaderText n s) '=' = HeaderClose (n - 1) (n - 1) s
+performState (HeaderText n s) x   = HeaderText n $ s ++ [x]
 
-performState (HeaderText n s) x =
-  performState (HeaderText n $ s ++ [head x]) $ tail x
-
-performState (HeaderClose 0 x s) y | isPrefixOf "\n" y
-  = (Header (x + 1) s, LineStart, tail y)
-
-performState (HeaderClose n x s) y | isPrefixOf "=" y
-  = performState (HeaderClose (n - 1) x s) $ tail y
+performState (HeaderClose 0 x s) '\n' = Accept $ Header (x + 1) s
+performState (HeaderClose n x s) '=' = HeaderClose (n - 1) x s
 
 -- If HeaderClose's buffer doesn't end appropriately (none of the above
 -- conditions were matched and a recursion isn't appropriate), this is in fact
@@ -114,19 +94,15 @@ performState (HeaderClose n x s) y | isPrefixOf "=" y
 -- this point, we reconstruct the string (this can be done losslessly because
 -- whitespace is unimportant) and resume scanning knowing that we are
 -- constructing a word.
-performState (HeaderClose ending starting text) y = let
+performState (HeaderClose ending starting text) c = let
              hText = replicate (starting + 1) '=' ++ " " ++ text
-                     ++ replicate (starting - ending + 1) '=' ++ [head y]
-             in performState (ParBuild hText) $ tail y
+                     ++ replicate (starting - ending + 1) '=' ++ [c]
+             in ParBuild hText
 
-performState (HorizontalRuleBuild n) y | n < 3 && head y == '-'
-  = performState (HorizontalRuleBuild $ n + 1) $ tail y
-
-performState (HorizontalRuleBuild 3) y | head y == '\n'
-  = (HorizontalRule, LineStart, tail y)
+performState (HorizontalRuleBuild n) '-' | n < 3 = HorizontalRuleBuild $ n + 1
+performState (HorizontalRuleBuild 3) '\n' = Accept HorizontalRule
 
 -- If none of the above rules matched (the string isn't ---\n or a prefix
 -- thereof), we need to back up and rebuild the token knowing that we're looking
 -- at a paragraph.
-performState (HorizontalRuleBuild n) y
-  = performState (ParBuild (replicate n '-')) y
+performState (HorizontalRuleBuild n) c = ParBuild (replicate n '-' ++ [c])

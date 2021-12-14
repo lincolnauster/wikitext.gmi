@@ -13,7 +13,7 @@ gemtext = gemtextInner LineStart
 gemtextInner _ "" = ""
 gemtextInner s x  =
   case performState s $ head x of
-       Accept t -> show t ++ "\n" ++ gemtextInner LineStart (tail x)
+       Accept t s -> show t ++ gemtextInner s (tail x)
        nc -> gemtextInner nc (tail x)
 
 -- Process the state in the context of the input string, returning the next
@@ -23,12 +23,11 @@ performState :: State -> Char -> State
 
 data State = LineStart
            -- Input is starting a line.
-           | ParBuild String
-           -- Input is composing a paragraph.
-           | ParClose String Int
-           -- Input might be able to close a paragraph (with value String),
-           -- having observed Int newlines.
-           | HeaderOpen  Int
+           | WordStart
+           -- Input is starting a word.
+           | WordBuild String
+           -- Input is building up a word.
+           | HeaderOpen Int
            -- Input is opening a header with a given level.
            | HeaderText  Int String
            -- Input is opening a header with a given level and text.
@@ -38,37 +37,35 @@ data State = LineStart
            | HorizontalRuleBuild Int
            -- Input has given us Int '-''s, and the input *might* be a
            -- horizontal rule.
-           | Accept Token
-           -- Input was a complete token and accepted.
+           | Accept Token State
+           -- Input was a complete token and accepted. If parsing should be
+           -- resumed, the next state to use is given here.
            deriving Show
 
-data Token = Paragraph String | Header Int String | HorizontalRule
+data Token = Word String | ParagraphBreak | Header Int String | HorizontalRule
 
 -- `show` renders our token to gemtext
 instance Show Token where
-  show (Paragraph s) = s ++ "\n"
+  show (Word s) = s ++ " "
 
-  show (Header n s) | n <= 3 = replicate n '#' ++ " " ++ s
+  show ParagraphBreak = "\n\n"
+
+  show (Header n s) | n <= 3 = replicate n '#' ++ " " ++ s ++ "\n"
    -- show headers of lesser importance in brackets
-  show (Header _ s) = "### [" ++ s ++ "]"
+  show (Header _ s) = "### [" ++ s ++ "]" ++ "\n"
 
   show HorizontalRule = "---"
 
-performState LineStart '=' = HeaderOpen 1
-performState LineStart '-' = HorizontalRuleBuild 1
-performState LineStart c   = ParBuild [c]
+performState LineStart '='  = HeaderOpen 1
+performState LineStart '-'  = HorizontalRuleBuild 1
+performState LineStart '\n' = Accept ParagraphBreak LineStart
+performState LineStart c    = WordBuild [c]
 
-performState (ParBuild x) '\n' = ParClose x 1
+performState WordStart c = WordBuild [c]
 
--- collapse whitespace
-performState (ParBuild x) c | isSpace c = ParBuild $ x ++ " "
-performState (ParBuild x) c = ParBuild $ x ++ [c]
-
-performState (ParClose x n) '\n' | n < 2 = Accept $ Paragraph x
-
--- ParClose didn't see a paragraph delimiter, so just collapse the whitespace
--- and keep building.
-performState (ParClose x _) c = ParBuild $ x ++ [' ', c]
+performState (WordBuild x) '\n' = Accept (Word x) LineStart
+performState (WordBuild x) c | isSpace c = Accept (Word x) WordStart
+performState (WordBuild x) c = WordBuild $ x ++ [c]
 
 performState (HeaderOpen n) '=' = HeaderOpen $ n + 1
 
@@ -80,12 +77,12 @@ performState (HeaderOpen n) c = HeaderText n [c]
 -- line that begins with some ='s. At this point, we reconstruct the text, and
 -- back up with the knowledge that we're constructing a word.
 performState (HeaderText n s) '\n'
-  = ParBuild $ replicate n '=' ++ " " ++ s ++ "\n"
+  = WordBuild $ replicate n '=' ++ s ++ "\n"
 
 performState (HeaderText n s) '=' = HeaderClose (n - 1) (n - 1) s
 performState (HeaderText n s) x   = HeaderText n $ s ++ [x]
 
-performState (HeaderClose 0 x s) '\n' = Accept $ Header (x + 1) s
+performState (HeaderClose 0 x s) '\n' = Accept (Header (x + 1) s) LineStart
 performState (HeaderClose n x s) '=' = HeaderClose (n - 1) x s
 
 -- If HeaderClose's buffer doesn't end appropriately (none of the above
@@ -95,14 +92,14 @@ performState (HeaderClose n x s) '=' = HeaderClose (n - 1) x s
 -- whitespace is unimportant) and resume scanning knowing that we are
 -- constructing a word.
 performState (HeaderClose ending starting text) c = let
-             hText = replicate (starting + 1) '=' ++ " " ++ text
+             hText = replicate (starting + 1) '=' ++ text
                      ++ replicate (starting - ending + 1) '=' ++ [c]
-             in ParBuild hText
+             in WordBuild hText
 
 performState (HorizontalRuleBuild n) '-' | n < 3 = HorizontalRuleBuild $ n + 1
-performState (HorizontalRuleBuild 3) '\n' = Accept HorizontalRule
+performState (HorizontalRuleBuild 3) '\n' = Accept HorizontalRule LineStart
 
 -- If none of the above rules matched (the string isn't ---\n or a prefix
 -- thereof), we need to back up and rebuild the token knowing that we're looking
 -- at a paragraph.
-performState (HorizontalRuleBuild n) c = ParBuild (replicate n '-' ++ [c])
+performState (HorizontalRuleBuild n) c = WordBuild (replicate n '-' ++ [c])

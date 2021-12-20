@@ -12,14 +12,14 @@ gemtextInner :: State -> String -> String
 gemtext = gemtextInner ParagraphStart
 gemtextInner _ "" = ""
 gemtextInner s x  =
-  case performState s $ head x of
+  case trans s $ head x of
        Accept t s -> show t ++ gemtextInner s (tail x)
        nc -> gemtextInner nc (tail x)
 
 -- Process the state in the context of the input string, returning the next
 -- state, the parsed token, and the next unparsed portion of the input string.
 -- It is invalid to call this with a Done state.
-performState :: State -> Char -> State
+trans :: State -> Char -> State
 
 data State = LineStart
            -- Input is starting a line.
@@ -58,37 +58,37 @@ instance Show Token where
 
   show HorizontalRule = "---\n\n"
 
-performState ParagraphStart '-'  = HorizontalRuleBuild 1
-performState ParagraphStart '='  = HeaderOpen 1
-performState ParagraphStart '\n' = ParagraphStart
-performState ParagraphStart c    = WordBuild [c]
+trans ParagraphStart '-'  = HorizontalRuleBuild 1
+trans ParagraphStart '='  = HeaderOpen 1
+trans ParagraphStart '\n' = ParagraphStart
+trans ParagraphStart c    = WordBuild [c]
 
-performState LineStart '\n' = Accept ParagraphBreak ParagraphStart
-performState LineStart c    = WordBuild [c]
+trans LineStart '\n' = Accept ParagraphBreak ParagraphStart
+trans LineStart c    = WordBuild [c]
 
-performState WordStart c = WordBuild [c]
+trans WordStart c = WordBuild [c]
 
-performState (WordBuild x) '\n' = Accept (Word x) LineStart
-performState (WordBuild x) c | isSpace c = Accept (Word x) WordStart
-performState (WordBuild x) c = WordBuild $ x ++ [c]
+trans (WordBuild x) '\n' = Accept (Word x) LineStart
+trans (WordBuild x) c | isSpace c = Accept (Word x) WordStart
+trans (WordBuild x) c = WordBuild $ x ++ [c]
 
-performState (HeaderOpen n) '=' = HeaderOpen $ n + 1
+trans (HeaderOpen n) '=' = HeaderOpen $ n + 1
 
 -- skip opening whitespace
-performState (HeaderOpen n) c | isSpace c = HeaderText n ""
-performState (HeaderOpen n) c = HeaderText n [c]
+trans (HeaderOpen n) c | isSpace c = HeaderText n ""
+trans (HeaderOpen n) c = HeaderText n [c]
 
 -- If HeaderText ends prematurely, this is in fact *not* a header, but rather a
 -- line that begins with some ='s. At this point, we reconstruct the text, and
 -- back up with the knowledge that we're constructing a word.
-performState (HeaderText n s) '\n'
+trans (HeaderText n s) '\n'
   = WordBuild $ replicate n '=' ++ s ++ "\n"
 
-performState (HeaderText n s) '=' = HeaderClose (n - 1) (n - 1) s
-performState (HeaderText n s) x   = HeaderText n $ s ++ [x]
+trans (HeaderText n s) '=' = HeaderClose (n - 1) (n - 1) s
+trans (HeaderText n s) x   = HeaderText n $ s ++ [x]
 
-performState (HeaderClose 0 x s) '\n' = Accept (Header (x + 1) s) ParagraphStart
-performState (HeaderClose n x s) '=' = HeaderClose (n - 1) x s
+trans (HeaderClose 0 x s) '\n' = Accept (Header (x + 1) s) ParagraphStart
+trans (HeaderClose n x s) '=' = HeaderClose (n - 1) x s
 
 -- If HeaderClose's buffer doesn't end appropriately (none of the above
 -- conditions were matched and a recursion isn't appropriate), this is in fact
@@ -96,15 +96,15 @@ performState (HeaderClose n x s) '=' = HeaderClose (n - 1) x s
 -- this point, we reconstruct the string (this can be done losslessly because
 -- whitespace is unimportant) and resume scanning knowing that we are
 -- constructing a word.
-performState (HeaderClose ending starting text) c = let
-             hText = replicate (starting + 1) '=' ++ text
-                     ++ replicate (starting - ending + 1) '=' ++ [c]
-             in WordBuild hText
+trans (HeaderClose ending starting text) c = let
+  hText = replicate (starting + 1) '=' ++ text
+            ++ replicate (starting - ending + 1) '=' ++ [c]
+          in WordBuild hText
 
-performState (HorizontalRuleBuild n) '-' | n < 3 = HorizontalRuleBuild $ n + 1
-performState (HorizontalRuleBuild 3) '\n' = Accept HorizontalRule ParagraphStart
+trans (HorizontalRuleBuild n) '-' | n < 3 = HorizontalRuleBuild $ n + 1
+trans (HorizontalRuleBuild 3) '\n' = Accept HorizontalRule ParagraphStart
 
 -- If none of the above rules matched (the string isn't ---\n or a prefix
 -- thereof), we need to back up and rebuild the token knowing that we're looking
 -- at a paragraph.
-performState (HorizontalRuleBuild n) c = WordBuild (replicate n '-' ++ [c])
+trans (HorizontalRuleBuild n) c = WordBuild (replicate n '-' ++ [c])

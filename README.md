@@ -78,5 +78,5 @@ wikitext.gmi compiles to a binary (`wikitext-gmi`) which reads WikiText from
 stdin and writes Gemtext to stdout. Some C bindings for FFI might exist at some
 point, but do note the GPL license.
 
-To build it from source, build it as a Flake (`nix flake build`) or with cabal
-(`cabal build`).
+To build it from source, build it as a Flake (`nix build`) or with cabal (`cabal
+build`).

@@ -65,7 +65,7 @@ doesn't. Here's how we handle them:
 Short answer: O(n) \
 Long answer: it's a work in progress. Algorithmically speaking, the core FSM is
 *fine* (basically O(n) except for some reconstructions; you could probably coax
-* O(n^2) out of it in very degenerate unrealistic cases), but it needs some
+*O(n^2)* out of it in very degenerate unrealistic cases), but it needs some
 real-world-perf work in IO and strings. Did you know that the default Haskell
 string type is actually a linked list? Neither did I! It's exactly as bad as it
 sounds! Even once those are replaced with Texts or something similar, IO in

@@ -55,7 +55,7 @@ doesn't. Here's how we handle them:
 - [ ] Ordered lists: The number is prepended to the list text in
   brackets.
 
-- [ ] Bold and italic text: this is transformed to markdown-esque formatting.
+- [x] Bold and italic text: this is transformed to markdown-esque formatting.
   That seems to be the convention in Gemini-space (though it's of course not
   coded into the Gemtext spec).
 

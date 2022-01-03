@@ -97,7 +97,7 @@ trans (PhraseStart n) c = PhraseBuild NoFmt $ replicate n '\'' ++ [c]
 -- at newlines (?). Replicate that here.
 trans (PhraseBuild f x) '\n' = Accept (Word f x) LineStart
 
-trans (PhraseBuild NoFmt x) '\'' = Accept (Word NoFmt $ x) $ PhraseStart 1
+trans (PhraseBuild NoFmt x) '\'' = PhraseBuild NoFmt $ x ++ "'"
 trans (PhraseBuild f x) '\'' = PhraseClose (ticks f - 1) f $ x
 trans (PhraseBuild f x) c = PhraseBuild f $ x ++ [c]
 
@@ -106,7 +106,7 @@ trans (PhraseClose 0 f x) c | isSpace c = Accept (Word f x) $ PhraseStart 0
 
 trans (PhraseClose n f x) '\'' = PhraseClose (n - 1) f $ x
 
--- We were gaslit, gatekept, and girlbossed. This isn't actually closing
+-- We were gaslit, gatekept, and girlbossed. The input isn't actually closing
 -- anything.
 trans (PhraseClose n f x) c = PhraseBuild f $
                                   x ++ replicate ((ticks f) - n) '\'' ++ [c]

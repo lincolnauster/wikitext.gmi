@@ -147,3 +147,7 @@ trans (HorizontalRuleBuild 3) '\n' = Accept HorizontalRule ParagraphStart
 -- thereof), we need to back up and rebuild the token knowing that we're looking
 -- at a paragraph.
 trans (HorizontalRuleBuild n) c = PhraseBuild NoFmt (replicate n '-' ++ [c])
+
+-- Accept t s is roughly an identity. This rule should never be reached.
+trans (Accept t s) _ = Accept t s
+

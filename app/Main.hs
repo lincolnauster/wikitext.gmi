@@ -11,6 +11,7 @@ getTargetAction :: IO Action
 getTargetAction = do a <- getArgs
                      case a of
                           ("--help":[]) -> return Help
+                          ("-h":[])     -> return Help
                           ([])  -> getContents >>= \c -> return $ Convert c
                           (f:_) -> readFile f  >>= \c -> return $ Convert c
 

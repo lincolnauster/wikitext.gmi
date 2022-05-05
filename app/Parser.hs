@@ -4,7 +4,7 @@ module Parser
 
 import Data.Char
 
--- Lazily convert an input wikidata String to gemtext.
+-- Lazily convert an input wikitext String to gemtext.
 gemtext :: String -> String
 gemtextInner :: State -> String -> String
 
@@ -12,13 +12,12 @@ gemtext = gemtextInner ParagraphStart
 gemtextInner _ "" = ""
 gemtextInner s x  =
   case trans s $ head x of
-       Accept t s -> show t ++ gemtextInner s (tail x)
-       nc -> gemtextInner nc (tail x)
+       (nc, Just t)  -> show t ++ gemtextInner nc (tail x)
+       (nc, Nothing) -> gemtextInner nc (tail x)
 
--- Process the state in the context of the input string, returning the next
--- state, the parsed token, and the next unparsed portion of the input string.
--- It is invalid to call this with a Done state.
-trans :: State -> Char -> State
+-- Apply a character to state, returning the next state and
+-- potentially a converted output String.
+trans :: State -> Char -> (State, Maybe Token)
 
 data State = LineStart
            -- Input is starting a line.
@@ -43,9 +42,6 @@ data State = LineStart
            | HorizontalRuleBuild Int
            -- Input has given us Int '-''s, and the input *might* be a
            -- horizontal rule.
-           | Accept Token State
-           -- Input was a complete token and accepted. If parsing should be
-           -- resumed, the next state to use is given here.
            deriving Show
 
 data Formatting = NoFmt | Bold | Italic | BoldItalic deriving Show
@@ -77,57 +73,58 @@ instance Show Token where
 
   show HorizontalRule = "---\n\n"
 
-trans ParagraphStart '-'  = HorizontalRuleBuild 1
-trans ParagraphStart '='  = HeaderOpen 1
-trans ParagraphStart '\n' = ParagraphStart
-trans ParagraphStart '\'' = PhraseStart 1
-trans ParagraphStart c    = PhraseBuild NoFmt [c]
+trans ParagraphStart '-'  = (HorizontalRuleBuild 1, Nothing)
+trans ParagraphStart '='  = (HeaderOpen 1, Nothing)
+trans ParagraphStart '\n' = (ParagraphStart, Nothing)
+trans ParagraphStart '\'' = (PhraseStart 1, Nothing)
+trans ParagraphStart c    = (PhraseBuild NoFmt [c], Nothing)
 
-trans LineStart '\n' = Accept ParagraphBreak ParagraphStart
-trans LineStart '\'' = PhraseStart 1
-trans LineStart c    = PhraseBuild NoFmt [c]
+trans LineStart '\n' = (ParagraphStart, Just ParagraphBreak)
+trans LineStart '\'' = (PhraseStart 1, Nothing)
+trans LineStart c    = (PhraseBuild NoFmt [c], Nothing)
 
-trans (PhraseStart n) '\'' = PhraseStart (n + 1)
-trans (PhraseStart 2) c = PhraseBuild Italic [c]
-trans (PhraseStart 3) c = PhraseBuild Bold [c]
-trans (PhraseStart 5) c = PhraseBuild BoldItalic [c]
-trans (PhraseStart n) c = PhraseBuild NoFmt $ replicate n '\'' ++ [c]
+trans (PhraseStart n) '\'' = (PhraseStart (n + 1), Nothing)
+trans (PhraseStart 2) c = (PhraseBuild Italic [c], Nothing)
+trans (PhraseStart 3) c = (PhraseBuild Bold [c], Nothing)
+trans (PhraseStart 5) c = (PhraseBuild BoldItalic [c], Nothing)
+trans (PhraseStart n) c = (PhraseBuild NoFmt $ replicate n '\'' ++ [c], Nothing)
 
 -- It looks like Wikipedia will automatically close unclosed formatting delims
 -- at newlines (?). Replicate that here.
-trans (PhraseBuild f x) '\n' = Accept (Word f x) LineStart
+trans (PhraseBuild f x) '\n' = (LineStart, Just $ Word f x)
 
-trans (PhraseBuild NoFmt x) '\'' = PhraseBuild NoFmt $ x ++ "'"
-trans (PhraseBuild f x) '\'' = PhraseClose (ticks f - 1) f $ x
-trans (PhraseBuild f x) c = PhraseBuild f $ x ++ [c]
+trans (PhraseBuild NoFmt x) '\'' = (PhraseBuild NoFmt $ x ++ "'", Nothing)
+trans (PhraseBuild f x) '\'' = (PhraseClose (ticks f - 1) f $ x, Nothing)
+trans (PhraseBuild f x) c = (PhraseBuild f $ x ++ [c], Nothing)
 
-trans (PhraseClose 0 f x) '\n' = Accept (Word f x) $ LineStart
-trans (PhraseClose 0 f x) c | isSpace c = Accept (Word f x) $ PhraseStart 0
+trans (PhraseClose 0 f x) '\n' = (LineStart, Just $ Word f x)
+trans (PhraseClose 0 f x) c | isSpace c = (PhraseStart 0, Just $ Word f x)
 
-trans (PhraseClose n f x) '\'' = PhraseClose (n - 1) f $ x
+trans (PhraseClose n f x) '\'' = (PhraseClose (n - 1) f $ x, Nothing)
 
 -- We were gaslit, gatekept, and girlbossed. The input isn't actually closing
 -- anything.
-trans (PhraseClose n f x) c = PhraseBuild f $
-                                  x ++ replicate ((ticks f) - n) '\'' ++ [c]
+trans (PhraseClose n f x) c = let ns = PhraseBuild f $
+                                    x ++ replicate ((ticks f) - n) '\'' ++ [c]
+                              in (ns, Nothing)
 
-trans (HeaderOpen n) '=' = HeaderOpen $ n + 1
+trans (HeaderOpen n) '=' = (HeaderOpen $ n + 1, Nothing)
 
 -- skip opening whitespace
-trans (HeaderOpen n) c | isSpace c = HeaderText n ""
-trans (HeaderOpen n) c = HeaderText n [c]
+trans (HeaderOpen n) c | isSpace c = (HeaderText n "", Nothing)
+trans (HeaderOpen n) c = (HeaderText n [c], Nothing)
 
 -- If HeaderText ends prematurely, this is in fact *not* a header, but rather a
 -- line that begins with some ='s. At this point, we reconstruct the text, and
 -- back up with the knowledge that we're constructing a word.
 trans (HeaderText n s) '\n'
-  = PhraseBuild NoFmt $ replicate n '=' ++ s ++ "\n"
+  = (PhraseBuild NoFmt $ replicate n '=' ++ s ++ "\n", Nothing)
 
-trans (HeaderText n s) '=' = HeaderClose (n - 1) (n - 1) s
-trans (HeaderText n s) x   = HeaderText n $ s ++ [x]
+trans (HeaderText n s) '=' = (HeaderClose (n - 1) (n - 1) s, Nothing)
+trans (HeaderText n s) x   = (HeaderText n $ s ++ [x],       Nothing)
 
-trans (HeaderClose 0 x s) '\n' = Accept (Header (x + 1) s) ParagraphStart
-trans (HeaderClose n x s) '=' = HeaderClose (n - 1) x s
+trans (HeaderClose 0 x s) '\n' = (ParagraphStart, Just $ Header (x + 1) s)
+trans (HeaderClose n x s) '=' = (HeaderClose (n - 1) x s, Nothing)
 
 -- If HeaderClose's buffer doesn't end appropriately (none of the above
 -- conditions were matched and a recursion isn't appropriate), this is in fact
@@ -138,16 +135,14 @@ trans (HeaderClose n x s) '=' = HeaderClose (n - 1) x s
 trans (HeaderClose ending starting text) c = let
   hText = replicate (starting + 1) '=' ++ text
             ++ replicate (starting - ending + 1) '=' ++ [c]
-          in PhraseBuild NoFmt hText
+          in (PhraseBuild NoFmt hText, Nothing)
 
-trans (HorizontalRuleBuild n) '-' | n < 3 = HorizontalRuleBuild $ n + 1
-trans (HorizontalRuleBuild 3) '\n' = Accept HorizontalRule ParagraphStart
+trans (HorizontalRuleBuild n) '-' | n < 3 = (HorizontalRuleBuild $ n + 1, Nothing)
+trans (HorizontalRuleBuild 3) '\n' = (ParagraphStart, Just HorizontalRule)
 
 -- If none of the above rules matched (the string isn't ---\n or a prefix
 -- thereof), we need to back up and rebuild the token knowing that we're looking
 -- at a paragraph.
-trans (HorizontalRuleBuild n) c = PhraseBuild NoFmt (replicate n '-' ++ [c])
-
--- Accept t s is roughly an identity. This rule should never be reached.
-trans (Accept t s) _ = Accept t s
+trans (HorizontalRuleBuild n) c =
+  (PhraseBuild NoFmt (replicate n '-' ++ [c]), Nothing)
 

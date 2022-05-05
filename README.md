@@ -62,22 +62,27 @@ doesn't. Here's how we handle them:
 - [ ] bunch more stuff that I'll get to later!
 
 ## How fast is it?
-Short answer: O(n) \
-Long answer: it's a work in progress. Algorithmically speaking, the core FSM is
-*fine* (basically O(n) except for some reconstructions; you could probably coax
-*O(n^2)* out of it in very degenerate unrealistic cases), but it needs some
-real-world-perf work in IO and strings. Did you know that the default Haskell
-string type is actually a linked list? Neither did I! It's exactly as bad as it
-sounds! Even once those are replaced with Texts or something similar, IO in
-Haskell (especially lazy IO, like the type we *definitely need* here) is a bit
-of a mess. Feel free to help out! If you want to take it upon yourself to
-optimize in the case that I don't get around to it first, here's what I'm
-looking for:
+
+I wrote the initial algorithm many months ago without knowing Haskell
+or parsing theory. I'm like 80% sure that the core FSM treats Wikitext
+like an LL(1) grammar, and parses accordingly, so it *should* be
+*O(n)*, but performance is looking suspiciously exponential at the
+moment. Current priorities are to refactor the code into something
+semi-readable and only then deal with optimization.
+
+In addition to all of that, it needs some real-world-perf work in IO
+and strings. Did you know that the default Haskell string type is
+actually a linked list? Neither did I! It's exactly as bad as it
+sounds! Even once those are replaced with Texts or something similar,
+IO in Haskell (especially lazy IO, like the type we *definitely need*
+here) is a bit of a mess. Feel free to help out! If you want to take
+it upon yourself to optimize in the case that I don't get around to it
+first, here's what I'm looking for:
 
 + Keep memory usage low & lazy.
 + Try for contiguous memory (linked lists are definitely a mistake!).
 + Assume that hundreds of instances could be running at once (as it would be in
-  the proxy-server environment this targets)
+  the proxy-server environment this targets).
 + Encapsulate it.
 + Keep it idiomatic.
 
